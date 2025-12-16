@@ -4,6 +4,7 @@
 
 # ==================== Environment ====================
 .env
+.env.template
 .env.local
 .env.*.local
 *.env
