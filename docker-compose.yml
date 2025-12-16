@@ -1,0 +1,276 @@
+version: '3.8'
+
+# ============================================
+# Real-Time Analytics Platform
+# Production-Grade Infrastructure
+# ============================================
+
+services:
+  # ==================== ZOOKEEPER ====================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: analytics-zookeeper
+    hostname: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: ${ZOOKEEPER_CLIENT_PORT:-2181}
+      ZOOKEEPER_TICK_TIME: ${ZOOKEEPER_TICK_TIME:-2000}
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+    networks:
+      - analytics-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ==================== KAFKA ====================
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: analytics-kafka
+    hostname: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: ${KAFKA_BROKER_ID:-1}
+      KAFKA_ZOOKEEPER_CONNECT: ${KAFKA_ZOOKEEPER_CONNECT:-zookeeper:2181}
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR:-1}
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: ${KAFKA_AUTO_CREATE_TOPICS_ENABLE:-true}
+      KAFKA_NUM_PARTITIONS: ${KAFKA_NUM_PARTITIONS:-3}
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - analytics-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # ==================== KAFKA UI (Optional but helpful) ====================
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: analytics-kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: analytics-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - analytics-network
+    restart: unless-stopped
+
+  # ==================== SPARK MASTER ====================
+  spark-master:
+    image: bitnami/spark:3.5.0
+    container_name: analytics-spark-master
+    hostname: spark-master
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    environment:
+      - SPARK_MODE=master
+      - SPARK_MASTER_HOST=spark-master
+      - SPARK_MASTER_PORT=7077
+      - SPARK_MASTER_WEBUI_PORT=8080
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    volumes:
+      - ./spark/apps:/opt/bitnami/spark/apps
+      - ./spark/data:/opt/bitnami/spark/data
+      - ./spark/jars:/opt/bitnami/spark/extra-jars
+      - spark-logs:/opt/bitnami/spark/logs
+    networks:
+      - analytics-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ==================== SPARK WORKER ====================
+  spark-worker:
+    image: bitnami/spark:3.5.0
+    container_name: analytics-spark-worker
+    hostname: spark-worker
+    depends_on:
+      spark-master:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_WEBUI_PORT=8081
+      - SPARK_WORKER_CORES=${SPARK_WORKER_CORES:-2}
+      - SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY:-2g}
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    volumes:
+      - ./spark/apps:/opt/bitnami/spark/apps
+      - ./spark/data:/opt/bitnami/spark/data
+      - ./spark/jars:/opt/bitnami/spark/extra-jars
+      - spark-worker-logs:/opt/bitnami/spark/logs
+    networks:
+      - analytics-network
+    restart: unless-stopped
+
+  # ==================== MINIO (S3-Compatible Storage) ====================
+  minio:
+    image: minio/minio:RELEASE.2024-01-01T16-36-33Z
+    container_name: analytics-minio
+    hostname: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_password_change_me}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - analytics-network
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ==================== MINIO BUCKET CREATION ====================
+  minio-init:
+    image: minio/mc:RELEASE.2024-01-01T16-36-33Z
+    container_name: analytics-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command: /scripts/create-buckets.sh
+    volumes:
+      - ./scripts/create-buckets.sh:/scripts/create-buckets.sh:ro
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_password_change_me}
+      S3_BUCKET_RAW: ${S3_BUCKET_RAW:-raw-events}
+      S3_BUCKET_BRONZE: ${S3_BUCKET_BRONZE:-bronze}
+      S3_BUCKET_SILVER: ${S3_BUCKET_SILVER:-silver}
+      S3_BUCKET_GOLD: ${S3_BUCKET_GOLD:-gold}
+    networks:
+      - analytics-network
+
+  # ==================== POSTGRESQL ====================
+  postgres:
+    image: postgres:15-alpine
+    container_name: analytics-postgres
+    hostname: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-analytics_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-analytics_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-analytics_warehouse}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - analytics-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-analytics_user} -d ${POSTGRES_DB:-analytics_warehouse}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ==================== JUPYTER LAB ====================
+  jupyter:
+    image: jupyter/pyspark-notebook:spark-3.5.0
+    container_name: analytics-jupyter
+    hostname: jupyter
+    depends_on:
+      spark-master:
+        condition: service_healthy
+    ports:
+      - "8888:8888"
+    environment:
+      - JUPYTER_TOKEN=${JUPYTER_TOKEN:-analytics_jupyter_token}
+      - SPARK_MASTER=spark://spark-master:7077
+      - PYSPARK_DRIVER_PYTHON=jupyter
+      - PYSPARK_DRIVER_PYTHON_OPTS=lab
+      # AWS/MinIO credentials for S3 access
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minio_admin}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minio_password_change_me}
+      - AWS_ENDPOINT_URL=${AWS_ENDPOINT_URL:-http://minio:9000}
+    volumes:
+      - ./notebooks:/home/jovyan/work
+      - ./spark/apps:/home/jovyan/spark-apps
+      - ./data:/home/jovyan/data
+      - jupyter-data:/home/jovyan/.jupyter
+    networks:
+      - analytics-network
+    user: root
+    command: >
+      bash -c "
+        pip install --quiet kafka-python boto3 delta-spark pyarrow psycopg2-binary &&
+        start-notebook.sh --NotebookApp.token='${JUPYTER_TOKEN:-analytics_jupyter_token}'
+      "
+    restart: unless-stopped
+
+# ==================== NETWORKS ====================
+networks:
+  analytics-network:
+    driver: bridge
+    name: analytics-network
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+
+# ==================== VOLUMES ====================
+volumes:
+  zookeeper-data:
+    name: analytics-zookeeper-data
+  zookeeper-logs:
+    name: analytics-zookeeper-logs
+  kafka-data:
+    name: analytics-kafka-data
+  spark-logs:
+    name: analytics-spark-logs
+  spark-worker-logs:
+    name: analytics-spark-worker-logs
+  minio-data:
+    name: analytics-minio-data
+  postgres-data:
+    name: analytics-postgres-data
+  jupyter-data:
+    name: analytics-jupyter-data
