@@ -58,83 +58,83 @@ init: setup-env
 # ==================== DOCKER COMMANDS ====================
 
 build:
-	docker-compose build
+	docker compose build
 
 up: init
-	docker-compose up -d
+	docker compose up -d
 	@echo ""
 	@echo "Services starting... Use 'make logs' to view logs"
 	@echo "Use 'make ps' to check service status"
 
 down:
-	docker-compose down
+	docker compose down
 
 restart: down up
 
 logs:
-	docker-compose logs -f
+	docker compose logs -f
 
 ps:
-	docker-compose ps
+	docker compose ps
 
 clean:
-	docker-compose down -v --remove-orphans
+	docker compose down -v --remove-orphans
 	@echo "All containers and volumes removed"
 
 # ==================== INDIVIDUAL SERVICES ====================
 
 up-kafka:
-	docker-compose up -d zookeeper kafka kafka-ui
+	docker compose up -d zookeeper kafka kafka-ui
 	@echo "Kafka stack started"
 
 up-spark:
-	docker-compose up -d spark-master spark-worker
+	docker compose up -d spark-master spark-worker
 	@echo "Spark cluster started"
 
 up-storage:
-	docker-compose up -d minio minio-init postgres
+	docker compose up -d minio minio-init postgres
 	@echo "Storage services started"
 
 up-jupyter:
-	docker-compose up -d jupyter
+	docker compose up -d jupyter
 	@echo "Jupyter Lab started at http://localhost:8888"
 
 # ==================== LOGS ====================
 
 logs-kafka:
-	docker-compose logs -f kafka
+	docker compose logs -f kafka
 
 logs-spark:
-	docker-compose logs -f spark-master spark-worker
+	docker compose logs -f spark-master spark-worker
 
 logs-minio:
-	docker-compose logs -f minio
+	docker compose logs -f minio
 
 logs-postgres:
-	docker-compose logs -f postgres
+	docker compose logs -f postgres
 
 logs-jupyter:
-	docker-compose logs -f jupyter
+	docker compose logs -f jupyter
 
 # ==================== UTILITIES ====================
 
 kafka-topics:
-	docker-compose exec kafka kafka-topics --bootstrap-server localhost:9092 --list
+	docker compose exec kafka kafka-topics --bootstrap-server localhost:9092 --list
 
 kafka-create-topics:
-	docker-compose exec kafka kafka-topics --bootstrap-server localhost:9092 --create --topic events.raw.v1 --partitions 3 --replication-factor 1
-	docker-compose exec kafka kafka-topics --bootstrap-server localhost:9092 --create --topic events.processed.v1 --partitions 3 --replication-factor 1
-	docker-compose exec kafka kafka-topics --bootstrap-server localhost:9092 --create --topic events.dlq.v1 --partitions 1 --replication-factor 1
+	docker compose exec kafka kafka-topics --bootstrap-server localhost:9092 --create --topic events.raw.v1 --partitions 3 --replication-factor 1
+	docker compose exec kafka kafka-topics --bootstrap-server localhost:9092 --create --topic events.processed.v1 --partitions 3 --replication-factor 1
+	docker compose exec kafka kafka-topics --bootstrap-server localhost:9092 --create --topic events.dlq.v1 --partitions 1 --replication-factor 1
 	@echo "Kafka topics created"
 
 postgres-shell:
-	docker-compose exec postgres psql -U analytics_user -d analytics_warehouse
+	docker compose exec postgres psql -U analytics_user -d analytics_warehouse
 
 minio-shell:
-	docker-compose exec minio sh
+	docker compose exec minio sh
 
 spark-shell:
-	docker-compose exec spark-master spark-shell
+	docker compose exec spark-master /spark/bin/spark-shell
 
 pyspark-shell:
-	docker-compose exec spark-master pyspark
+	docker compose exec spark-master /spark/bin/pyspark

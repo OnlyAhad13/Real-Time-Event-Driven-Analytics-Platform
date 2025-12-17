@@ -1,4 +1,3 @@
-#!/bin/sh
 # ============================================
 # MinIO Bucket Initialization Script
 # Creates all required buckets for the data lake

@@ -1,4 +1,4 @@
-version: '3.8'
+# Docker Compose for Real-Time Analytics Platform
 
 # ============================================
 # Real-Time Analytics Platform
@@ -39,12 +39,13 @@ services:
       zookeeper:
         condition: service_healthy
     ports:
-      - "9092:9092"
-      - "29092:29092"
+      - "9093:9092"
+      - "29093:29092"
     environment:
       KAFKA_BROKER_ID: ${KAFKA_BROKER_ID:-1}
       KAFKA_ZOOKEEPER_CONNECT: ${KAFKA_ZOOKEEPER_CONNECT:-zookeeper:2181}
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29093
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR:-1}
@@ -86,38 +87,32 @@ services:
 
   # ==================== SPARK MASTER ====================
   spark-master:
-    image: bitnami/spark:3.5.0
+    image: bde2020/spark-master:3.3.0-hadoop3.3
     container_name: analytics-spark-master
     hostname: spark-master
     ports:
       - "8080:8080"
       - "7077:7077"
     environment:
-      - SPARK_MODE=master
-      - SPARK_MASTER_HOST=spark-master
-      - SPARK_MASTER_PORT=7077
-      - SPARK_MASTER_WEBUI_PORT=8080
-      - SPARK_RPC_AUTHENTICATION_ENABLED=no
-      - SPARK_RPC_ENCRYPTION_ENABLED=no
-      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
-      - SPARK_SSL_ENABLED=no
+      - INIT_DAEMON_STEP=setup_spark
+      - SPARK_MASTER=spark://spark-master:7077
     volumes:
-      - ./spark/apps:/opt/bitnami/spark/apps
-      - ./spark/data:/opt/bitnami/spark/data
-      - ./spark/jars:/opt/bitnami/spark/extra-jars
-      - spark-logs:/opt/bitnami/spark/logs
+      - ./spark/apps:/opt/spark-apps
+      - ./spark/data:/opt/spark-data
+      - spark-logs:/spark/logs
     networks:
       - analytics-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080"]
-      interval: 10s
-      timeout: 5s
+      interval: 30s
+      timeout: 10s
       retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   # ==================== SPARK WORKER ====================
   spark-worker:
-    image: bitnami/spark:3.5.0
+    image: bde2020/spark-worker:3.3.0-hadoop3.3
     container_name: analytics-spark-worker
     hostname: spark-worker
     depends_on:
@@ -126,27 +121,20 @@ services:
     ports:
       - "8081:8081"
     environment:
-      - SPARK_MODE=worker
-      - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_WEBUI_PORT=8081
+      - SPARK_MASTER=spark://spark-master:7077
       - SPARK_WORKER_CORES=${SPARK_WORKER_CORES:-2}
       - SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY:-2g}
-      - SPARK_RPC_AUTHENTICATION_ENABLED=no
-      - SPARK_RPC_ENCRYPTION_ENABLED=no
-      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
-      - SPARK_SSL_ENABLED=no
     volumes:
-      - ./spark/apps:/opt/bitnami/spark/apps
-      - ./spark/data:/opt/bitnami/spark/data
-      - ./spark/jars:/opt/bitnami/spark/extra-jars
-      - spark-worker-logs:/opt/bitnami/spark/logs
+      - ./spark/apps:/opt/spark-apps
+      - ./spark/data:/opt/spark-data
+      - spark-worker-logs:/spark/logs
     networks:
       - analytics-network
     restart: unless-stopped
 
   # ==================== MINIO (S3-Compatible Storage) ====================
   minio:
-    image: minio/minio:RELEASE.2024-01-01T16-36-33Z
+    image: minio/minio:latest
     container_name: analytics-minio
     hostname: minio
     ports:
@@ -169,7 +157,7 @@ services:
 
   # ==================== MINIO BUCKET CREATION ====================
   minio-init:
-    image: minio/mc:RELEASE.2024-01-01T16-36-33Z
+    image: minio/mc:latest
     container_name: analytics-minio-init
     depends_on:
       minio:
@@ -194,7 +182,7 @@ services:
     container_name: analytics-postgres
     hostname: postgres
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-analytics_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-analytics_password_change_me}
@@ -214,7 +202,7 @@ services:
 
   # ==================== JUPYTER LAB ====================
   jupyter:
-    image: jupyter/pyspark-notebook:spark-3.5.0
+    image: jupyter/pyspark-notebook:latest
     container_name: analytics-jupyter
     hostname: jupyter
     depends_on:
