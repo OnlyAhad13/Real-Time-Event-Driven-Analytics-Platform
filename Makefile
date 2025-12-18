@@ -150,4 +150,27 @@ submit-bronze:
 		--conf spark.hadoop.fs.s3a.path.style.access=true \
 		--conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem \
 		--conf spark.hadoop.fs.s3a.connection.ssl.enabled=false \
-		/opt/spark-apps/streaming_job.py
+		/opt/spark-apps/streaming_job.py bronze
+
+submit-silver:
+	docker compose exec spark-master /spark/bin/spark-submit \
+		--packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0,org.apache.hadoop:hadoop-aws:3.3.2,com.amazonaws:aws-java-sdk-bundle:1.12.262 \
+		--conf spark.hadoop.fs.s3a.endpoint=http://minio:9000 \
+		--conf spark.hadoop.fs.s3a.access.key=minio_admin \
+		--conf spark.hadoop.fs.s3a.secret.key=minio_password_change_me \
+		--conf spark.hadoop.fs.s3a.path.style.access=true \
+		--conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem \
+		--conf spark.hadoop.fs.s3a.connection.ssl.enabled=false \
+		/opt/spark-apps/streaming_job.py silver
+
+submit-all:
+	docker compose exec spark-master /spark/bin/spark-submit \
+		--packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0,org.apache.hadoop:hadoop-aws:3.3.2,com.amazonaws:aws-java-sdk-bundle:1.12.262 \
+		--conf spark.hadoop.fs.s3a.endpoint=http://minio:9000 \
+		--conf spark.hadoop.fs.s3a.access.key=minio_admin \
+		--conf spark.hadoop.fs.s3a.secret.key=minio_password_change_me \
+		--conf spark.hadoop.fs.s3a.path.style.access=true \
+		--conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem \
+		--conf spark.hadoop.fs.s3a.connection.ssl.enabled=false \
+		/opt/spark-apps/streaming_job.py both
+
