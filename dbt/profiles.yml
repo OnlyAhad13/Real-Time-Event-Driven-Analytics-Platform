@@ -1,0 +1,44 @@
+# dbt Profile Configuration
+# This file should be placed in ~/.dbt/profiles.yml or referenced via DBT_PROFILES_DIR
+
+analytics_platform:
+  target: dev
+  outputs:
+    # Development environment (local PostgreSQL)
+    dev:
+      type: postgres
+      host: "{{ env_var('POSTGRES_HOST', 'localhost') }}"
+      port: "{{ env_var('POSTGRES_PORT', '5433') | int }}"
+      user: "{{ env_var('POSTGRES_USER', 'analytics_user') }}"
+      password: "{{ env_var('POSTGRES_PASSWORD', 'analytics_password_change_me') }}"
+      dbname: "{{ env_var('POSTGRES_DB', 'analytics_warehouse') }}"
+      schema: public
+      threads: 4
+      keepalives_idle: 0
+      connect_timeout: 10
+      search_path: public
+    
+    # Production environment (update with actual credentials)
+    prod:
+      type: postgres
+      host: "{{ env_var('PROD_POSTGRES_HOST') }}"
+      port: "{{ env_var('PROD_POSTGRES_PORT', '5432') | int }}"
+      user: "{{ env_var('PROD_POSTGRES_USER') }}"
+      password: "{{ env_var('PROD_POSTGRES_PASSWORD') }}"
+      dbname: "{{ env_var('PROD_POSTGRES_DB') }}"
+      schema: public
+      threads: 8
+      keepalives_idle: 0
+      connect_timeout: 10
+
+    # Snowflake configuration (if using Snowflake)
+    # snowflake:
+    #   type: snowflake
+    #   account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+    #   user: "{{ env_var('SNOWFLAKE_USER') }}"
+    #   password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+    #   role: "{{ env_var('SNOWFLAKE_ROLE') }}"
+    #   database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
+    #   warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE') }}"
+    #   schema: public
+    #   threads: 8

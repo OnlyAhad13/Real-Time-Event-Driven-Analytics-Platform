@@ -1,0 +1,146 @@
+version: 2
+
+# ============================================
+# Sources (Raw warehouse tables)
+# ============================================
+sources:
+  - name: warehouse
+    description: "Data Warehouse - Star Schema tables"
+    database: analytics_warehouse
+    schema: public
+    tables:
+      - name: fact_events
+        description: "Central fact table for event analytics. Grain: one row per event."
+        columns:
+          - name: event_key
+            description: "Surrogate primary key"
+            tests:
+              - unique
+              - not_null
+          - name: event_id
+            description: "Natural event identifier"
+            tests:
+              - not_null
+          - name: idempotency_key
+            description: "Unique key for deduplication"
+            tests:
+              - unique
+              - not_null
+          - name: event_type
+            description: "Type of event"
+            tests:
+              - not_null
+              - accepted_values:
+                  values: ['user_signup', 'page_view', 'purchase', 'payment_failed']
+          - name: user_key
+            description: "Foreign key to dim_user"
+          - name: time_key
+            description: "Foreign key to dim_time"
+          - name: device_key
+            description: "Foreign key to dim_device"
+          - name: event_timestamp
+            description: "When the event occurred"
+            tests:
+              - not_null
+
+      - name: dim_user
+        description: "User dimension with SCD Type-2 for tracking attribute changes"
+        columns:
+          - name: user_key
+            description: "Surrogate primary key"
+            tests:
+              - unique
+              - not_null
+          - name: user_id
+            description: "Natural user identifier"
+            tests:
+              - not_null
+          - name: is_current
+            description: "Flag indicating if this is the current version"
+            tests:
+              - not_null
+              - accepted_values:
+                  values: [true, false]
+
+      - name: dim_time
+        description: "Time dimension for temporal analysis"
+        columns:
+          - name: time_key
+            description: "Surrogate primary key"
+            tests:
+              - unique
+              - not_null
+
+      - name: dim_device
+        description: "Device dimension for platform/device analysis"
+        columns:
+          - name: device_key
+            description: "Surrogate primary key"
+            tests:
+              - unique
+              - not_null
+
+# ============================================
+# Models
+# ============================================
+models:
+  - name: daily_active_users
+    description: "Daily Active Users (DAU) - Count of unique users per day"
+    columns:
+      - name: activity_date
+        description: "Date of activity"
+        tests:
+          - unique
+          - not_null
+      - name: daily_active_users
+        description: "Count of unique active users"
+        tests:
+          - not_null
+      - name: total_events
+        description: "Total number of events on this day"
+      - name: avg_events_per_user
+        description: "Average events per active user"
+
+  - name: revenue_per_user
+    description: "Revenue Per User - Total purchase value aggregated per user"
+    columns:
+      - name: user_key
+        description: "Surrogate key from dim_user"
+        tests:
+          - unique
+          - not_null
+      - name: user_id
+        description: "Natural user identifier"
+      - name: total_revenue
+        description: "Total revenue from this user"
+        tests:
+          - not_null
+      - name: total_purchases
+        description: "Count of purchases"
+      - name: avg_order_value
+        description: "Average order value"
+
+  - name: churn_risk
+    description: "Users at risk of churning (no activity in 7+ days)"
+    columns:
+      - name: user_key
+        description: "Surrogate key from dim_user"
+        tests:
+          - unique
+          - not_null
+      - name: days_since_last_activity
+        description: "Number of days since last event"
+        tests:
+          - not_null
+      - name: churn_risk_level
+        description: "Risk level: low, medium, high"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['low', 'medium', 'high']
+      - name: is_at_churn_risk
+        description: "Boolean flag for churn risk"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true]

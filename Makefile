@@ -174,3 +174,15 @@ submit-all:
 		--conf spark.hadoop.fs.s3a.connection.ssl.enabled=false \
 		/opt/spark-apps/streaming_job.py both
 
+# Batch job for Silver -> Warehouse ETL (run daily)
+# Usage: make submit-batch DATE=2024-01-15
+submit-batch:
+	docker compose exec spark-master /spark/bin/spark-submit \
+		--packages org.apache.hadoop:hadoop-aws:3.3.2,com.amazonaws:aws-java-sdk-bundle:1.12.262,org.postgresql:postgresql:42.6.0 \
+		--conf spark.hadoop.fs.s3a.endpoint=http://minio:9000 \
+		--conf spark.hadoop.fs.s3a.access.key=minio_admin \
+		--conf spark.hadoop.fs.s3a.secret.key=minio_password_change_me \
+		--conf spark.hadoop.fs.s3a.path.style.access=true \
+		--conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem \
+		--conf spark.hadoop.fs.s3a.connection.ssl.enabled=false \
+		/opt/spark-apps/batch_loader.py $(if $(DATE),--date $(DATE),)

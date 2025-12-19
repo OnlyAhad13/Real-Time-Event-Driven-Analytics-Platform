@@ -1,0 +1,87 @@
+name: 'analytics_platform'
+version: '1.0.0'
+config-version: 2
+
+# Project profile (defined in profiles.yml)
+profile: 'analytics_platform'
+
+# Model configurations
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Model materialization configurations
+models:
+  analytics_platform:
+    # Staging layer - views for quick iteration
+    staging:
+      +materialized: view
+      +schema: staging
+    
+    # Intermediate layer - ephemeral or views
+    intermediate:
+      +materialized: ephemeral
+    
+    # Marts layer (final models) - tables for performance
+    marts:
+      +materialized: table
+      +schema: marts
+      
+      # Core mart models
+      core:
+        +materialized: table
+        +tags: ['core', 'daily']
+      
+      # Marketing mart models
+      marketing:
+        +materialized: table
+        +tags: ['marketing']
+
+# Seed configurations
+seeds:
+  analytics_platform:
+    +schema: seeds
+
+# Snapshot configurations
+snapshots:
+  analytics_platform:
+    +target_schema: snapshots
+
+# Variables (can be overridden at runtime)
+vars:
+  # Lookback window for churn analysis (days)
+  churn_lookback_days: 7
+  
+  # Date range for incremental models
+  start_date: '2020-01-01'
+  
+  # Event types for validation
+  valid_event_types:
+    - 'user_signup'
+    - 'page_view'
+    - 'purchase'
+    - 'payment_failed'
+
+# Documentation
+docs-paths: ["docs"]
+asset-paths: ["assets"]
+
+# Query configurations
+query-comment:
+  comment: "dbt run by {{ target.name }} at {{ run_started_at }}"
+  append: true
+
+# On-run hooks
+on-run-start:
+  - "{{ log('Starting dbt run...', info=True) }}"
+
+on-run-end:
+  - "{{ log('dbt run completed!', info=True) }}"
