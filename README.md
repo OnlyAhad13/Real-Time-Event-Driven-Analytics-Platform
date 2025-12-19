@@ -30,87 +30,91 @@ A production-grade, end-to-end real-time analytics platform implementing the **M
 
 ```mermaid
 flowchart TB
-    subgraph INGESTION["📥 INGESTION LAYER"]
-        Producer["🐍 Producer<br/>(Python)"]
-        Kafka["📨 Kafka<br/>(events_raw)"]
+    subgraph INGESTION[" "]
+        direction LR
+        Producer["🐍 Producer<br/>Python"]
+        Kafka["📨 Kafka<br/>events_raw"]
+        Producer --> Kafka
     end
 
-    subgraph STREAMING["⚡ SPARK STRUCTURED STREAMING"]
-        Bronze["🥉 Bronze Layer<br/>(Raw Parquet)"]
-        Silver["🥈 Silver Layer<br/>(Sessionized)"]
-        DLQ["⚠️ Dead Letter Queue"]
+    subgraph STREAMING[" "]
+        direction LR
+        Bronze["🥉 Bronze<br/>Raw Parquet"]
+        Silver["🥈 Silver<br/>Sessionized"]
+        DLQ["⚠️ DLQ"]
+        Bronze --> Silver
+        Bronze -.-> DLQ
     end
 
-    subgraph DATALAKE["💾 DATA LAKE (MinIO/S3)"]
-        BronzeBucket["bronze/events/"]
-        SilverBucket["silver/events/"]
-        DLQBucket["dead-letter-queue/"]
+    subgraph DATALAKE[" "]
+        direction LR
+        BronzeBucket[("bronze/")]
+        SilverBucket[("silver/")]
+        DLQBucket[("dlq/")]
     end
 
-    subgraph BATCH["🔄 SPARK BATCH LOADER (Daily)"]
-        SCD["SCD Type-2 Updates"]
-        FactLoad["Incremental Fact Loading"]
-        DimLookup["Dimension Key Lookups"]
+    subgraph BATCH[" "]
+        direction LR
+        SCD["SCD Type-2"]
+        FactLoad["Fact Load"]
+        DimLookup["Dim Lookup"]
     end
 
-    subgraph WAREHOUSE["🏛️ DATA WAREHOUSE (PostgreSQL)"]
-        dim_time["dim_time<br/>(96K rows)"]
-        dim_device["dim_device<br/>(16 rows)"]
-        dim_user["dim_user<br/>(SCD-2)"]
-        fact_events["fact_events<br/>(Central Fact)"]
+    subgraph WAREHOUSE[" "]
+        direction LR
+        dim_time[("dim_time")]
+        dim_device[("dim_device")]
+        dim_user[("dim_user")]
+        fact_events[("fact_events")]
     end
 
-    subgraph DBT["📊 dbt TRANSFORMATIONS"]
+    subgraph DBT[" "]
+        direction LR
         DAU["daily_active_users"]
         Revenue["revenue_per_user"]
         Churn["churn_risk"]
     end
 
-    subgraph AIRFLOW["🎯 ORCHESTRATION (Airflow)"]
+    subgraph AIRFLOW[" "]
         direction LR
-        Task1["spark_batch_job"] --> Task2["dbt_run"]
-        Task2 --> Task3["dbt_test"]
-        Task3 --> Task4["data_quality"]
+        Task1["spark_batch"] --> Task2["dbt_run"] --> Task3["dbt_test"] --> Task4["quality"]
     end
 
-    %% Flow connections
-    Producer --> Kafka
+    %% Main flow
     Kafka --> Bronze
-    Bronze --> Silver
-    Bronze -.-> DLQ
-
     Bronze --> BronzeBucket
     Silver --> SilverBucket
     DLQ --> DLQBucket
-
+    
     SilverBucket --> BATCH
     SCD --> dim_user
     FactLoad --> fact_events
     DimLookup --> dim_time
     DimLookup --> dim_device
+    
+    fact_events --> DAU
+    fact_events --> Revenue
+    fact_events --> Churn
+    
+    DBT --> AIRFLOW
 
-    fact_events --> DBT
-    dim_user --> DBT
-    dim_time --> DBT
-
-    DAU --> AIRFLOW
-    Revenue --> AIRFLOW
-    Churn --> AIRFLOW
+    %% Labels
+    INGESTION -.- ING_LABEL["📥 INGESTION LAYER"]
+    STREAMING -.- STR_LABEL["⚡ SPARK STREAMING"]
+    DATALAKE -.- DL_LABEL["💾 DATA LAKE"]
+    BATCH -.- BAT_LABEL["🔄 BATCH LOADER"]
+    WAREHOUSE -.- WH_LABEL["🏛️ WAREHOUSE"]
+    DBT -.- DBT_LABEL["📊 dbt"]
+    AIRFLOW -.- AIR_LABEL["🎯 AIRFLOW"]
 
     %% Styling
-    classDef ingestion fill:#e1f5fe,stroke:#01579b,color:#000
-    classDef streaming fill:#fff3e0,stroke:#e65100,color:#000
-    classDef storage fill:#e8f5e9,stroke:#2e7d32,color:#000
-    classDef warehouse fill:#f3e5f5,stroke:#7b1fa2,color:#000
-    classDef transform fill:#fff8e1,stroke:#f9a825,color:#000
-    classDef orchestration fill:#fce4ec,stroke:#c2185b,color:#000
-
-    class INGESTION ingestion
-    class STREAMING streaming
-    class DATALAKE storage
-    class WAREHOUSE warehouse
-    class DBT transform
-    class AIRFLOW orchestration
+    style ING_LABEL fill:none,stroke:none
+    style STR_LABEL fill:none,stroke:none
+    style DL_LABEL fill:none,stroke:none
+    style BAT_LABEL fill:none,stroke:none
+    style WH_LABEL fill:none,stroke:none
+    style DBT_LABEL fill:none,stroke:none
+    style AIR_LABEL fill:none,stroke:none
 ```
 
 ### Technology Stack
