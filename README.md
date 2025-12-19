@@ -109,8 +109,8 @@ A production-grade, end-to-end real-time analytics platform implementing the **M
 ### 1. Clone and Setup
 
 ```bash
-git clone https://github.com/your-org/real-time-analytics.git
-cd real-time-analytics
+git clone https://github.com/OnlyAhad13/Real-Time-Event-Driven-Analytics-Platform.git
+cd Real-Time-Event-Driven-Analytics-Platform
 
 # Copy environment template
 cp .env.example .env
@@ -131,10 +131,10 @@ make status
 | Service | URL | Credentials |
 |---------|-----|-------------|
 | Spark Master UI | http://localhost:8080 | - |
-| MinIO Console | http://localhost:9001 | minio_admin / minio_password_change_me |
-| PostgreSQL | localhost:5433 | analytics_user / analytics_password_change_me |
-| Airflow | http://localhost:8081 | airflow / airflow |
-| Kafka | localhost:29093 | - |
+| MinIO Console | http://localhost:9001 | `minio_admin` / `minio_password_change_me` |
+| PostgreSQL | `localhost:5433` | `analytics_user` / `analytics_password_change_me` |
+| Airflow | http://localhost:8081 | `airflow` / `airflow` |
+| Kafka | `localhost:29093` | - |
 
 ### 3. Initialize Kafka Topics
 
