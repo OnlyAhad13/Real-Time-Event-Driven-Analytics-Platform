@@ -98,12 +98,12 @@ flowchart TB
     Churn --> AIRFLOW
 
     %% Styling
-    classDef ingestion fill:#e1f5fe,stroke:#01579b
-    classDef streaming fill:#fff3e0,stroke:#e65100
-    classDef storage fill:#e8f5e9,stroke:#2e7d32
-    classDef warehouse fill:#f3e5f5,stroke:#7b1fa2
-    classDef transform fill:#fff8e1,stroke:#f9a825
-    classDef orchestration fill:#fce4ec,stroke:#c2185b
+    classDef ingestion fill:#e1f5fe,stroke:#01579b,color:#000
+    classDef streaming fill:#fff3e0,stroke:#e65100,color:#000
+    classDef storage fill:#e8f5e9,stroke:#2e7d32,color:#000
+    classDef warehouse fill:#f3e5f5,stroke:#7b1fa2,color:#000
+    classDef transform fill:#fff8e1,stroke:#f9a825,color:#000
+    classDef orchestration fill:#fce4ec,stroke:#c2185b,color:#000
 
     class INGESTION ingestion
     class STREAMING streaming
