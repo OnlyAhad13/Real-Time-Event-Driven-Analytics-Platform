@@ -541,5 +541,5 @@ MIT License - See [LICENSE](LICENSE) for details.
 ---
 
 <p align="center">
-  Built with ❤️ by the Analytics Engineering Team
+  Built with ❤️ by Syed Abdul Ahad
 </p>
