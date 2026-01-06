@@ -117,10 +117,20 @@ flowchart TB
     style AIR_LABEL fill:none,stroke:none
 ```
 
+
+### Real-Time Dashboard
+
+The platform now includes a **Live Analytics Dashboard** providing instantaneous insights:
+- **Live Event Stream**: Watch events arrive in real-time via WebSockets.
+- **Dynamic KPIs**: Revenue and Active User counts update the millisecond a transaction occurs.
+- **Historic Trends**: Interactive charts visualizing 30-day performance.
+
 ### Technology Stack
 
 | Layer | Technology | Purpose |
 |-------|------------|---------|
+| **Frontend** | React + Vite + Tailwind | Responsive, dark-themed real-time UI |
+| **Backend** | FastAPI + WebSockets | High-performance API & live event push |
 | **Ingestion** | Kafka (Confluent) | Event streaming, message durability |
 | **Processing** | Spark Structured Streaming | Real-time and batch transformations |
 | **Storage** | MinIO (S3-compatible) | Data lake with Parquet files |
@@ -153,8 +163,12 @@ cp .env.example .env
 ### 2. Start Infrastructure
 
 ```bash
-# Start all services (Kafka, Spark, MinIO, PostgreSQL, Airflow)
+
+# Start all services (Kafka, Spark, MinIO, PostgreSQL, Airflow, Backend, Frontend)
 make up
+
+# Or specifically for the dashboard stack (UI + API)
+make dashboard
 
 # Verify all services are healthy
 make status
@@ -164,6 +178,8 @@ make status
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
+| **Analytics Dashboard** | http://localhost:3000 | - |
+| **Backend API** | http://localhost:8000/docs | - |
 | Spark Master UI | http://localhost:8080 | - |
 | MinIO Console | http://localhost:9001 | `minio_admin` / `minio_password_change_me` |
 | PostgreSQL | `localhost:5433` | `analytics_user` / `analytics_password_change_me` |
@@ -255,6 +271,19 @@ python -m producers.producer \
 - Idempotency keys for exactly-once semantics
 - Configurable bad data injection (1% default)
 - Retry logic with exponential backoff
+
+### Dashboard Stack
+
+#### Frontend (`frontend/`)
+- **React 18** application built with Vite.
+- **Real-Time**: Connects to Backend WebSockets for live event feed.
+- **Visualization**: Recharts for trend analysis.
+- **Styling**: TailwindCSS with a custom "Refined Dark" theme.
+
+#### Backend (`backend/`)
+- **FastAPI** application serving REST endpoints and WebSockets.
+- **Kafka Consumer**: Consumes `events.processed.v1` and broadcasts to connected clients.
+- **Database**: Async PostgreSQL connection for high-throughput queries.
 
 ### Spark Streaming Job (`spark/apps/streaming_job.py`)
 
