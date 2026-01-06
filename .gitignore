@@ -115,3 +115,12 @@ tmp/
 temp/
 *.tmp
 *.temp
+
+# ==================== Node.js / Frontend ====================
+node_modules/
+dist/
+npm-debug.log*
+yarn-debug.log*
+
+# ==================== Secrets & Temporary Scripts ====================
+notebooks/backfill_dashboard.py

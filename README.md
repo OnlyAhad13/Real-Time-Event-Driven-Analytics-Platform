@@ -376,7 +376,7 @@ Silver Layer → Spark Batch Loader → Data Warehouse
 ### 3. SCD Type-2 Implementation
 
 Chose Type-2 over Type-1 for `dim_user` because:
-- **Audit trail**: Track when users changed plans
+- **Audit trail**: Track when users changed planse
 - **Historical accuracy**: Reports reflect user status at event time
 - **Point-in-time queries**: Join fact to dimension as of event date
 

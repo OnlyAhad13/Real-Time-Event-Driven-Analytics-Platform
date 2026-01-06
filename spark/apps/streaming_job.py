@@ -367,7 +367,7 @@ def run_silver_processing(spark: SparkSession):
     silver_query = (
         final_df.writeStream
         .format("parquet")
-        .outputMode("update")
+        .outputMode("append")
         .option("path", SILVER_OUTPUT_PATH)
         .option("checkpointLocation", SILVER_CHECKPOINT_PATH)
         .partitionBy("date")
@@ -377,7 +377,30 @@ def run_silver_processing(spark: SparkSession):
     
     logger.info(f"Silver streaming query started: {silver_query.id}")
     
-    return dlq_query, silver_query
+    logger.info(f"Silver streaming query started: {silver_query.id}")
+
+    # -----------------------------------------
+    # Step 7: Write to Kafka for Real-Time Dashboard
+    # -----------------------------------------
+    logger.info("Writing to Kafka (events.processed.v1) for Dashboard...")
+    
+    # Use valid_df for low-latency feed (before sessionization)
+    kafka_output_df = (
+        valid_df
+        .selectExpr("CAST(user_id AS STRING) AS key", "to_json(struct(*)) AS value")
+    )
+    
+    kafka_query = (
+        kafka_output_df.writeStream
+        .format("kafka")
+        .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
+        .option("topic", "events.processed.v1")
+        .option("checkpointLocation", "s3a://checkpoints/events_processed_kafka/")
+        .trigger(processingTime="1 seconds") 
+        .start()
+    )
+    
+    return dlq_query, silver_query, kafka_query
 
 # ============================================
 # Main Entry Point
@@ -410,8 +433,8 @@ def main():
             queries.append(bronze_query)
         
         if mode in ["silver", "both"]:
-            dlq_query, silver_query = run_silver_processing(spark)
-            queries.extend([dlq_query, silver_query])
+            dlq_query, silver_query, kafka_query = run_silver_processing(spark)
+            queries.extend([dlq_query, silver_query, kafka_query])
         
         # Wait for all queries
         logger.info(f"Waiting for {len(queries)} streaming queries...")

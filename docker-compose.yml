@@ -234,6 +234,43 @@ services:
       "
     restart: unless-stopped
 
+  # ==================== BACKEND API ====================
+  backend:
+    build: ./backend
+    container_name: analytics-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-analytics_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-analytics_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-analytics_warehouse}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - analytics-network
+
+  # ==================== FRONTEND UI ====================
+  frontend:
+    build: ./frontend
+    container_name: analytics-frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - analytics-network
+
 # ==================== NETWORKS ====================
 networks:
   analytics-network:

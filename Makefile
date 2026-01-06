@@ -186,3 +186,13 @@ submit-batch:
 		--conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem \
 		--conf spark.hadoop.fs.s3a.connection.ssl.enabled=false \
 		/opt/spark-apps/batch_loader.py $(if $(DATE),--date $(DATE),)
+
+# ---------------------------------------------------------------------------
+# Dashboard
+# ---------------------------------------------------------------------------
+
+dashboard: ## Start the Web Dashboard (Frontend + Backend)
+	@echo "Starting Dashboard..."
+	docker compose up -d --build backend frontend
+	@echo "Dashboard running at: http://localhost:3000"
+	@echo "API Docs running at: http://localhost:8000/docs"

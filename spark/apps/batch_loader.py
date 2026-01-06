@@ -225,15 +225,15 @@ def apply_scd_type2_user(spark: SparkSession, silver_df: DataFrame, current_date
             new_users
             .select(
                 col("user_id"),
-                lit(None).alias("email"),
-                lit(None).alias("username"),
+                lit(None).cast(StringType()).alias("email"),
+                lit(None).cast(StringType()).alias("username"),
                 lit("free").alias("plan_type"),  # Default plan
                 lit("active").alias("subscription_status"),
                 lit("bronze").alias("user_tier"),  # Default tier
                 col("country"),
                 col("region"),
                 col("city"),
-                lit(None).alias("timezone"),
+                lit(None).cast(StringType()).alias("timezone"),
                 to_date(lit(current_date)).alias("signup_date"),
                 lit("organic").alias("signup_source"),
                 to_timestamp(lit(current_date)).alias("effective_start_date"),
@@ -288,35 +288,33 @@ def apply_scd_type2_user(spark: SparkSession, silver_df: DataFrame, current_date
             # Execute UPDATE via JDBC (using raw SQL)
             # Note: PySpark doesn't support direct updates, so we use JDBC connection
             
-            import psycopg2
-            
-            conn = psycopg2.connect(
-                host=POSTGRES_HOST,
-                port=POSTGRES_PORT,
-                database=POSTGRES_DB,
-                user=POSTGRES_USER,
-                password=POSTGRES_PASSWORD
-            )
+            # Execute UPDATE via JDBC (using raw SQL via JVM)
+            logger.info("Executing SCD-2 Expiry via JDBC...")
             
             try:
-                cursor = conn.cursor()
+                jvm = spark.sparkContext._jvm
+                conn = jvm.java.sql.DriverManager.getConnection(JDBC_URL, POSTGRES_USER, POSTGRES_PASSWORD)
                 
-                # Expire old records
-                expire_sql = f"""
-                    UPDATE dim_user 
-                    SET is_current = FALSE, 
-                        effective_end_date = CURRENT_TIMESTAMP,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE user_key IN ({','.join(map(str, user_keys_to_expire))})
-                """
-                cursor.execute(expire_sql)
-                
-                conn.commit()
-                logger.info(f"Expired {len(user_keys_to_expire)} old user records")
-                
-            finally:
-                cursor.close()
-                conn.close()
+                try:
+                    stmt = conn.createStatement()
+                    
+                    # Expire old records
+                    expire_sql = f"""
+                        UPDATE dim_user 
+                        SET is_current = FALSE, 
+                            effective_end_date = CURRENT_TIMESTAMP,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE user_key IN ({','.join(map(str, user_keys_to_expire))})
+                    """
+                    stmt.executeUpdate(expire_sql)
+                    
+                    logger.info(f"Expired {len(user_keys_to_expire)} old user records")
+                    
+                finally:
+                    conn.close()
+            except Exception as e:
+                logger.error(f"Error executing SCD-2 expiry: {e}")
+                raise
             
             # Insert new versions with updated plan
             new_versions = (
@@ -466,7 +464,7 @@ def load_fact_events(spark: SparkSession, silver_df: DataFrame, target_date: str
             col("device_key"),
             col("event_type"),
             lit("v1").alias("schema_version"),
-            lit(None).alias("session_id"),
+            lit(None).cast(StringType()).alias("session_id"),
             col("ip_address"),
             col("primary_geo").getItem("country").alias("geo_country"),
             col("primary_geo").getItem("region").alias("geo_region"),
@@ -478,7 +476,7 @@ def load_fact_events(spark: SparkSession, silver_df: DataFrame, target_date: str
             when(col("event_type") == "purchase", 1).otherwise(0).alias("purchase_quantity"),
             when(col("event_type") == "purchase", True).otherwise(False).alias("is_conversion"),
             when(col("event_type") == "payment_failed", True).otherwise(False).alias("is_error"),
-            lit(None).alias("payload_json"),
+            lit(None).cast(StringType()).alias("payload_json"),
             col("event_timestamp"),
             lit(None).cast(TimestampType()).alias("kafka_timestamp"),
             lit(None).cast(TimestampType()).alias("ingestion_timestamp"),
@@ -503,53 +501,57 @@ def load_fact_events(spark: SparkSession, silver_df: DataFrame, target_date: str
     logger.info(f"Wrote {row_count} rows to temporary table {temp_table_name}")
     
     # Execute INSERT ON CONFLICT (upsert) via raw SQL
-    import psycopg2
-    
-    conn = psycopg2.connect(
-        host=POSTGRES_HOST,
-        port=POSTGRES_PORT,
-        database=POSTGRES_DB,
-        user=POSTGRES_USER,
-        password=POSTGRES_PASSWORD
-    )
+    # Execute INSERT ON CONFLICT (upsert) via raw SQL using JDBC Driver directly (avoiding psycopg2 dependency)
+    logger.info("Executing UPSERT via JDBC...")
     
     try:
-        cursor = conn.cursor()
+        # Access the JVM
+        jvm = spark.sparkContext._jvm
         
-        # Upsert from temp table to fact_events
-        upsert_sql = f"""
-            INSERT INTO fact_events (
-                event_id, idempotency_key, user_key, time_key, device_key,
-                event_type, schema_version, session_id, ip_address,
-                geo_country, geo_region, geo_city, geo_latitude, geo_longitude,
-                page_view_count, purchase_amount, purchase_quantity,
-                is_conversion, is_error, payload_json,
-                event_timestamp, kafka_timestamp, ingestion_timestamp,
-                warehouse_loaded_at, data_quality_score
-            )
-            SELECT 
-                event_id, idempotency_key, user_key, time_key, device_key,
-                event_type, schema_version, session_id, ip_address,
-                geo_country, geo_region, geo_city, geo_latitude, geo_longitude,
-                page_view_count, purchase_amount, purchase_quantity,
-                is_conversion, is_error, payload_json::jsonb,
-                event_timestamp, kafka_timestamp, ingestion_timestamp,
-                warehouse_loaded_at, data_quality_score
-            FROM {temp_table_name}
-            ON CONFLICT (idempotency_key) DO NOTHING;
-        """
-        cursor.execute(upsert_sql)
-        rows_inserted = cursor.rowcount
+        # Create connection
+        # URL, User, Password
+        conn = jvm.java.sql.DriverManager.getConnection(JDBC_URL, POSTGRES_USER, POSTGRES_PASSWORD)
         
-        # Drop temp table
-        cursor.execute(f"DROP TABLE IF EXISTS {temp_table_name}")
-        
-        conn.commit()
-        logger.info(f"Inserted {rows_inserted} new rows into fact_events (skipped duplicates)")
-        
-    finally:
-        cursor.close()
-        conn.close()
+        try:
+            stmt = conn.createStatement()
+            
+            # Upsert from temp table to fact_events
+            upsert_sql = f"""
+                INSERT INTO fact_events (
+                    event_id, idempotency_key, user_key, time_key, device_key,
+                    event_type, schema_version, session_id, ip_address,
+                    geo_country, geo_region, geo_city, geo_latitude, geo_longitude,
+                    page_view_count, purchase_amount, purchase_quantity,
+                    is_conversion, is_error, payload_json,
+                    event_timestamp, kafka_timestamp, ingestion_timestamp,
+                    warehouse_loaded_at, data_quality_score
+                )
+                SELECT 
+                    event_id, idempotency_key, user_key, time_key, device_key,
+                    event_type, schema_version, session_id, ip_address,
+                    geo_country, geo_region, geo_city, geo_latitude, geo_longitude,
+                    page_view_count, purchase_amount, purchase_quantity,
+                    is_conversion, is_error, payload_json::jsonb,
+                    event_timestamp, kafka_timestamp, ingestion_timestamp,
+                    warehouse_loaded_at, data_quality_score
+                FROM {temp_table_name}
+                ON CONFLICT (idempotency_key) DO NOTHING
+            """
+            
+            # ExecuteUpdate returns row count
+            rows_inserted = stmt.executeUpdate(upsert_sql)
+            
+            # Drop temp table
+            stmt.execute(f"DROP TABLE IF EXISTS {temp_table_name}")
+            
+            logger.info(f"Inserted {rows_inserted} new rows into fact_events (skipped duplicates)")
+            
+        finally:
+            conn.close()
+            
+    except Exception as e:
+        logger.error(f"Error executing upsert SQL: {e}")
+        raise
 
 # ============================================
 # Main Entry Point

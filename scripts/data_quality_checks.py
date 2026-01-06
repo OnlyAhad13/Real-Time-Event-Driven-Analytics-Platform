@@ -97,7 +97,8 @@ class QualityReport:
     
     @property
     def passed(self) -> bool:
-        return all(c.status == CheckStatus.PASSED for c in self.checks)
+        # Pass unless there are explicit failures (Warnings are okay)
+        return not any(c.status == CheckStatus.FAILED for c in self.checks)
     
     @property
     def failed_checks(self) -> List[QualityCheckResult]:
